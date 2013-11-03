@@ -82,56 +82,56 @@ static void dump_packet(unsigned char *data, int size) {
 }
 
 int main(int argc, char *argv[]) {
-  /**
-   * I've included some basic code for opening a socket in C, sending
-   * a UDP packet, and then receiving a response (or timeout).  You'll 
-   * need to fill in many of the details, but this should be enough to
-   * get you started.
-   */
+    /**
+    * I've included some basic code for opening a socket in C, sending
+    * a UDP packet, and then receiving a response (or timeout).  You'll 
+    * need to fill in many of the details, but this should be enough to
+    * get you started.
+    */
 
-  // process the arguments
+    // process the arguments
 
-  // construct the DNS request
+    // construct the DNS request
 
-  // send the DNS request (and call dump_packet with your request)
-  
-  // first, open a UDP socket  
-  int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    // send the DNS request (and call dump_packet with your request)
 
-  // next, construct the destination address
-  struct sockaddr_in out;
-  out.sin_family = AF_INET;
-  out.sin_port = htons(<<DNS server port number, as short>>);
-  out.sin_addr.s_addr = inet_addr(<<DNS server IP as char*>>);
+    // first, open a UDP socket  
+    int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 
-  if (sendto(sock, <<your packet>>, <<packet len>>, 0, &out, sizeof(out)) < 0) {
-    // an error occurred
-  }
+    // next, construct the destination address
+    struct sockaddr_in out;
+    out.sin_family = AF_INET;
+    out.sin_port = htons(<<DNS server port number, as short>>);
+    out.sin_addr.s_addr = inet_addr(<<DNS server IP as char*>>);
 
-  // wait for the DNS reply (timeout: 5 seconds)
-  struct sockaddr_in in;
-  socklen_t in_len;
-
-  // construct the socket set
-  fd_set socks;
-  FD_ZERO(&socks);
-  FD_SET(sock, &socks);
-
-  // construct the timeout
-  struct timeval t;
-  t.tv_sec = <<your timeout in seconds>>;
-  t.tv_usec = 0;
-
-  // wait to receive, or for a timeout
-  if (select(sock + 1, &socks, NULL, NULL, &t)) {
-    if (recvfrom(sock, <<your input buffer>>, <<input len>>, 0, &in, &in_len) < 0) {
-      // an error occured
+    if (sendto(sock, <<your packet>>, <<packet len>>, 0, &out, sizeof(out)) < 0) {
+        // an error occurred
     }
-  } else {
-    // a timeout occurred
-  }
 
-  // print out the result
-  
-  return 0;
+    // wait for the DNS reply (timeout: 5 seconds)
+    struct sockaddr_in in;
+    socklen_t in_len;
+
+    // construct the socket set
+    fd_set socks;
+    FD_ZERO(&socks);
+    FD_SET(sock, &socks);
+
+    // construct the timeout
+    struct timeval t;
+    t.tv_sec = <<your timeout in seconds>>;
+    t.tv_usec = 0;
+
+    // wait to receive, or for a timeout
+    if (select(sock + 1, &socks, NULL, NULL, &t)) {
+        if (recvfrom(sock, <<your input buffer>>, <<input len>>, 0, &in, &in_len) < 0) {
+            // an error occured
+        }
+    } else {
+        // a timeout occurred
+    }
+
+    // print out the result
+
+    return 0;
 }
