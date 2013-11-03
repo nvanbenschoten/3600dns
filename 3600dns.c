@@ -93,6 +93,29 @@ int main(int argc, char *argv[]) {
 
     // construct the DNS request
 
+    // DNS Packet Header
+    unsigned char header[12];
+    // set  ID
+    header[0] = 0x0; // set first two octets to 0
+    header[1] = 0x39; // and 1337 respectively
+
+    header[2] = 0x1; // set QR, Opcode, AA, TC, and RD
+    header[3] = 0x0; // set RA, Z, and RCODE
+    // set QDCOUNT
+    header[4] = 0x0;
+    header[5] = 0x1;
+    // set ANCOUNT
+    header[6] = 0x0;
+    header[7] = 0x0;
+    // set NSCOUNT
+    header[8] = 0x0;
+    header[9] = 0x0;
+    // set ARCOUNT
+    header[10] = 0x0;
+    header[11] = 0x0;
+
+    // DNS Packet Question
+
     // send the DNS request (and call dump_packet with your request)
 
     // first, open a UDP socket  
