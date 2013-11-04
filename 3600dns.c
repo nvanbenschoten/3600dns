@@ -5,6 +5,7 @@
  *
  */
 
+#include <assert.h>
 #include <math.h>
 #include <ctype.h>
 #include <time.h>
@@ -35,103 +36,155 @@
  * size - The length of your packet
  */
 static void dump_packet(unsigned char *data, int size) {
-    unsigned char *p = data;
-    unsigned char c;
-    int n;
-    char bytestr[4] = {0};
-    char addrstr[10] = {0};
-    char hexstr[ 16*3 + 5] = {0};
-    char charstr[16*1 + 5] = {0};
-    for(n=1;n<=size;n++) {
-        if (n%16 == 1) {
-            /* store address for this line */
-            snprintf(addrstr, sizeof(addrstr), "%.4x",
-               ((unsigned int)p-(unsigned int)data) );
-        }
-            
-        c = *p;
-        if (isprint(c) == 0) {
-            c = '.';
-        }
+	unsigned char *p = data;
+	unsigned char c;
+	int n;
+	char bytestr[4] = {0};
+	char addrstr[10] = {0};
+	char hexstr[ 16*3 + 5] = {0};
+	char charstr[16*1 + 5] = {0};
+	for(n=1;n<=size;n++) {
+		if (n%16 == 1) {
+			/* store address for this line */
+			snprintf(addrstr, sizeof(addrstr), "%.4x",
+			   ((unsigned int)p-(unsigned int)data) );
+		}
+			
+		c = *p;
+		if (isprint(c) == 0) {
+			c = '.';
+		}
 
-        /* store hex str (for left side) */
-        snprintf(bytestr, sizeof(bytestr), "%02X ", *p);
-        strncat(hexstr, bytestr, sizeof(hexstr)-strlen(hexstr)-1);
+		/* store hex str (for left side) */
+		snprintf(bytestr, sizeof(bytestr), "%02X ", *p);
+		strncat(hexstr, bytestr, sizeof(hexstr)-strlen(hexstr)-1);
 
-        /* store char str (for right side) */
-        snprintf(bytestr, sizeof(bytestr), "%c", c);
-        strncat(charstr, bytestr, sizeof(charstr)-strlen(charstr)-1);
+		/* store char str (for right side) */
+		snprintf(bytestr, sizeof(bytestr), "%c", c);
+		strncat(charstr, bytestr, sizeof(charstr)-strlen(charstr)-1);
 
-        if(n%16 == 0) { 
-            /* line completed */
-            printf("[%4.4s]   %-50.50s  %s\n", addrstr, hexstr, charstr);
-            hexstr[0] = 0;
-            charstr[0] = 0;
-        } else if(n%8 == 0) {
-            /* half line: add whitespaces */
-            strncat(hexstr, "  ", sizeof(hexstr)-strlen(hexstr)-1);
-            strncat(charstr, " ", sizeof(charstr)-strlen(charstr)-1);
-        }
-        p++; /* next byte */
-    }
+		if(n%16 == 0) { 
+			/* line completed */
+			printf("[%4.4s]   %-50.50s  %s\n", addrstr, hexstr, charstr);
+			hexstr[0] = 0;
+			charstr[0] = 0;
+		} else if(n%8 == 0) {
+			/* half line: add whitespaces */
+			strncat(hexstr, "  ", sizeof(hexstr)-strlen(hexstr)-1);
+			strncat(charstr, " ", sizeof(charstr)-strlen(charstr)-1);
+		}
+		p++; /* next byte */
+	}
 
-    if (strlen(hexstr) > 0) {
-        /* print rest of buffer if not empty */
-        printf("[%4.4s]   %-50.50s  %s\n", addrstr, hexstr, charstr);
-    }
+	if (strlen(hexstr) > 0) {
+		/* print rest of buffer if not empty */
+		printf("[%4.4s]   %-50.50s  %s\n", addrstr, hexstr, charstr);
+	}
 }
 
 int main(int argc, char *argv[]) {
-    /**
-    * I've included some basic code for opening a socket in C, sending
-    * a UDP packet, and then receiving a response (or timeout).  You'll 
-    * need to fill in many of the details, but this should be enough to
-    * get you started.
-    */
+	/**
+	* I've included some basic code for opening a socket in C, sending
+	* a UDP packet, and then receiving a response (or timeout).  You'll 
+	* need to fill in many of the details, but this should be enough to
+	* get you started.
+	*/
 
-    // process the arguments
+	// process the arguments
+	if (argc < 3) {
+	  	printf("Error: Usage: ./3600dns @<server:port> <name>\n");
+	  	return 1;
+	}
 
-    // construct the DNS request
+	char *server = (char *)calloc(strlen(argv[1]), sizeof(char));
+	assert(server != NULL);
 
-    // send the DNS request (and call dump_packet with your request)
+	// Default port number
+	short port = 53;
 
-    // first, open a UDP socket  
-    int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	int ret = parseInputServer(server, &port);
+	if (ret) {
+		printf("Error parsing input\n");
+	  	return 1;
+	}
 
-    // next, construct the destination address
-    struct sockaddr_in out;
-    out.sin_family = AF_INET;
-    out.sin_port = htons(<<DNS server port number, as short>>);
-    out.sin_addr.s_addr = inet_addr(<<DNS server IP as char*>>);
+	// construct the DNS request
 
-    if (sendto(sock, <<your packet>>, <<packet len>>, 0, &out, sizeof(out)) < 0) {
-        // an error occurred
-    }
+	// send the DNS request (and call dump_packet with your request)
 
-    // wait for the DNS reply (timeout: 5 seconds)
-    struct sockaddr_in in;
-    socklen_t in_len;
+	// first, open a UDP socket  
+	int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 
-    // construct the socket set
-    fd_set socks;
-    FD_ZERO(&socks);
-    FD_SET(sock, &socks);
+	// next, construct the destination address
+	struct sockaddr_in out;
+	out.sin_family = AF_INET;
+	out.sin_port = htons(port);
+	out.sin_addr.s_addr = inet_addr(server);
+	free(server);
 
-    // construct the timeout
-    struct timeval t;
-    t.tv_sec = <<your timeout in seconds>>;
-    t.tv_usec = 0;
+	if (sendto(sock, <<your packet>>, <<packet len>>, 0, &out, sizeof(out)) < 0) {
+		// an error occurred
+	}
 
-    // wait to receive, or for a timeout
-    if (select(sock + 1, &socks, NULL, NULL, &t)) {
-        if (recvfrom(sock, <<your input buffer>>, <<input len>>, 0, &in, &in_len) < 0) {
-            // an error occured
-        }
-    } else {
-        // a timeout occurred
-    }
+	// wait for the DNS reply (timeout: 5 seconds)
+	struct sockaddr_in in;
+	socklen_t in_len;
 
-    // print out the result
+	// construct the socket set
+	fd_set socks;
+	FD_ZERO(&socks);
+	FD_SET(sock, &socks);
 
-    return 0;
+	// construct the timeout
+	struct timeval t;
+	t.tv_sec = 5;
+	t.tv_usec = 0;
+
+	// wait to receive, or for a timeout
+	if (select(sock + 1, &socks, NULL, NULL, &t)) {
+		if (recvfrom(sock, <<your input buffer>>, <<input len>>, 0, &in, &in_len) < 0) {
+			// an error occured
+		}
+	} else {
+		// a timeout occurred
+	}
+
+	// print out the result
+
+	return 0;
+}
+
+// Helper functions
+int parseInputServer(char *server, short *port) {
+	// Shift server string over one byte;
+	int i;
+
+	// Deals with port being specified
+	int portSpec = 0;
+	int portIndex = 0;
+	char *portString = (char *)calloc(strlen(server), sizeof(char));
+	assert(portString != NULL);
+
+	// Iterates up to length
+	int length = strlen(server);
+	for (i = 0; i < length; i++) {
+		if (portSpec) {
+			portString[portIndex] = server[i+1];
+			portIndex++;
+		}
+		else {
+			server[i] = server[i+1];
+			if (server[i] == ':') {
+				portSpec = 1;
+				server[i] = '\0';
+			}
+		}
+	}
+
+	if (portSpec && portIndex > 1) {
+		*port = (short)atoi(portString);
+	}
+
+	free(portString);
+	return 0;
 }
