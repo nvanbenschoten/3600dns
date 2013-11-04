@@ -97,7 +97,7 @@ int main(int argc, char *argv[]) {
     unsigned char header[12];
     // set  ID
     header[0] = 0x0; // set first two octets to 0
-    header[1] = 0x39; // and 1337 respectively
+    header[0] = 0x39; // and 1337 respectively
 
     header[2] = 0x1; // set QR, Opcode, AA, TC, and RD
     header[3] = 0x0; // set RA, Z, and RCODE
@@ -115,8 +115,42 @@ int main(int argc, char *argv[]) {
     header[11] = 0x0;
 
     // DNS Packet Question
+    char * domain = argv[2];
+    unsigned int len = strlen(domain);
+    unsigned char *question = (unsigned char *) calloc(len+5, sizeof(unsigned char));
+    // len + 6 because . = octet, so need one additional octet for first subdomain and then
+    // QTYPE and QCLASS
+    //unsigned int i = 0;
+    unsigned int offset = 0; // index of beginning of a length octet in QNAME
+    unsigned int sublen = 0;
+    while (offset < len) {
+        // copy name string into question
+        while (domain[offset] != '.' && domain[offset] != '\0') {
+            question[offset+2] = domain[offset]
+            sublen++;
+            offset++;
+        }
+        // update string length
+        //question[offset-sublen] = (0xFF & sublen) >> 8;
+        question[offset-sublen] = 0xFF & sublen;
+        // increase offset
+        offset++;
+    }
+
+    // set QTYPE
+    question[len+2] = 0x0;
+    question[len+3] = 0x1;
+    // set QCLASS
+    question[len+4] = 0x0;
+    question[len+5] = 0x1;
+
+    // merge question and header into one
+    unsigned char * packet = (unsigned char) calloc(12+len+5, sizeof(unsigned char));
+    memcpy(packet, header, 12);
+    memcpy(packet+12, question, len+5);
 
     // send the DNS request (and call dump_packet with your request)
+    dump_packet(packet, 12+len+5);
 
     // first, open a UDP socket  
     int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
