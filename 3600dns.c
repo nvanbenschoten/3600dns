@@ -95,8 +95,6 @@ int main(int argc, char *argv[]) {
 	  	printf("Error: Usage: ./3600dns [-ns|-mx] @<server:port> <name>\n");
 	  	return 1;
 	}
-
-    printf("%i : %i : %i\n", (int)sizeof(void *), (int)sizeof(long), (int)sizeof(short));
  
     // Get flags if available
     int server_index = 1;
