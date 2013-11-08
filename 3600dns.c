@@ -47,7 +47,7 @@ static void dump_packet(unsigned char *data, int size) {
 		if (n%16 == 1) {
 			/* store address for this line */
 			snprintf(addrstr, sizeof(addrstr), "%.4x",
-			   ((unsigned int)p-(unsigned int)data) );
+			   ((unsigned int)((unsigned long)p)-(unsigned int)((unsigned long)data)) );
 		}
 			
 		c = *p;
@@ -92,23 +92,39 @@ int main(int argc, char *argv[]) {
 
 	// process the arguments
 	if (argc < 3) {
-	  	printf("Error: Usage: ./3600dns @<server:port> <name>\n");
+	  	printf("Error: Usage: ./3600dns [-ns|-mx] @<server:port> <name>\n");
 	  	return 1;
 	}
+ 
+    // Get flags if available
+    int server_index = 1;
+    int name_index = 2;
+    int record_flag = RECORD_A; 
 
-	char *server = (char *)calloc(strlen(argv[1]), sizeof(char));
+    if (argc > 3) {
+        //Sets the argument indices if input has flags
+        server_index++;
+        name_index++;
+
+        if(parseInputFlags(argv[1], &record_flag)) {
+            printf("Error parsing input flags\n");
+            return 1;
+        }
+    }
+
+    // Allocates memory for the server char array
+    char *server = (char *)calloc(strlen(argv[server_index]), sizeof(char));
 	assert(server != NULL);
 
 	// Default port number
 	short port = 53;
 
-	int ret = parseInputServer(server, &port);
-	if (ret) {
-		printf("Error parsing input\n");
+	if(parseInputServer(server, &port)) {
+		printf("Error parsing input server\n");
 	  	return 1;
 	}
 
-	// construct the DNS request
+	/* construct the DNS request */
 
     // DNS Packet Header
     unsigned char header[12];
@@ -132,7 +148,7 @@ int main(int argc, char *argv[]) {
     header[11] = 0x0;
 
     // DNS Packet Question
-    char * domain = argv[2];
+    char * domain = argv[name_index];
     unsigned int len = strlen(domain);
     unsigned char *question = (unsigned char *) calloc(len+6, sizeof(unsigned char));
     // len + 6 because . = octet, so need one additional octet for first subdomain and then
@@ -160,7 +176,20 @@ int main(int argc, char *argv[]) {
 
     // set QTYPE
     question[len+2] = 0x0;
-    question[len+3] = 0x1;
+    switch (record_flag) {
+        case RECORD_A:
+            question[len+3] = 0x1;
+            break;
+        case RECORD_MX:
+            question[len+3] = 0xf;
+            break;
+        case RECORD_NS:
+            question[len+3] = 0x2;
+            break;
+        default:         
+		    printf("Error with input flags\n");
+	  	    return 1;
+    }
     // set QCLASS
     question[len+4] = 0x0;
     question[len+5] = 0x1;
@@ -316,6 +345,22 @@ int main(int argc, char *argv[]) {
 }
 
 // Helper functions
+int parseInputFlags(char *flag_string, int *flag_pointer) {
+    // Compare wit name server flag
+    if (!strcmp(flag_string, "-ns")) {
+        *flag_pointer = RECORD_NS;
+        return 0;
+    }
+
+    // Compare with mail server flag
+    if (!strcmp(flag_string, "-mx")) {
+        *flag_pointer = RECORD_MX;
+        return 0;
+    }
+
+    return -1;
+}
+
 int parseInputServer(char *server, short *port) {
 	// Shift server string over one byte;
 	int i;

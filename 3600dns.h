@@ -8,6 +8,13 @@
 #ifndef __3600DNS_H__
 #define __3600DNS_H__
 
+enum RECORDS {
+    RECORD_A,
+    RECORD_MX,
+    RECORD_NS
+};
+
+int parseInputFlags(char *flag_string, int *flag_pointer);
 int parseInputServer(char *server, short *port);
 
 #endif
