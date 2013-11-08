@@ -201,19 +201,116 @@ int main(int argc, char *argv[]) {
 	t.tv_sec = 5;
 	t.tv_usec = 0;
 
+    // create a buffer to be used for the response
+    unsigned short response[94] = {0}; // 1500 bits
+    unsigned int response_len = 94;
+
 	// wait to receive, or for a timeout
 	if (select(sock + 1, &socks, NULL, NULL, &t)) {
-		if (recvfrom(sock, packet, 12+len+5, 0, (struct sockaddr *) &in, &in_len) < 0) {
+		if (recvfrom(sock, response, response_len, 0, (struct sockaddr *) &in, &in_len) < 0) {
 			// an error occured
+            printf("ERROR\tProblem receiving packet\n")
+            free(question);
+            free(packet);
+            return -1;
 		}
 	} else {
+        printf("NORESPONSE\n");
+        free(question);
+        free(packet);
 		// a timeout occurred
 	}
 
+    // parse received packet
+    char * auth_str;
+    unsigned short id = ntohs(response[0]);
+    unsigned short qr = (response[1] & 0x8000) >> 15;
+    unsigned short opcode = (response[1] & 0x7800) >> 11;
+    unsigned short aa = (response[1] & 0x400) >> 10;
+    unsigned short tc = (response[1] & 0x200) >> 9;
+    unsigned short rd = (response[1] & 0x100) >> 8;
+    unsigned short ra = (response[1] & 0x80) >> 7;
+    unsigned short z  = (response[1] & 0x70) >> 4;
+    unsigned short rcode = response[1] & 0xF;
+
+    if (id != 0x539) { // if ID is not 1337
+        printf("ERROR\tDNS server returned an invalid response ID.\n");
+        return -1;
+    }
+    if (qr != 1) {
+        printf("ERROR\tDNS server returned invalid QR.\n");
+        return -1;
+    }
+    if (opcode) {
+        printf("ERROR\tDNS server returned invalid OPCODE.\n")
+        return -1;
+    }
+    if (aa) { // if response is authoritative
+        auth_str = "auth";
+    }
+    else {
+        auth_str = "nonauth";
+    }
+    if (tc) {
+        printf("ERROR\tDNS server truncated message.\n");
+        return -1;
+    }
+    /*if (rd != 1) { // dunno if this error is necessary
+        printf("ERROR\tRecursion is not desired.\n");
+    }*/
+    if (!ra) {
+        printf("ERROR\tDNS server recursion was not available.\n");
+        return -1;
+    }
+    /*if (!z) { // this is probably not necessary
+        printf("ERROR\tZ was not zero.\n");
+        return -1;
+    }*/
+    switch (rcode) {
+        case 0:
+            
+            break;
+
+        case 1:
+            printf("ERROR\tName server was unable to interpret the query.\n");
+            return -1;
+
+        case 2:
+            printf("ERROR\tServer failure.\n");
+            return -1;
+
+        case 3:
+            printf("NOTFOUND\n");
+            return -1;
+
+        case 4:
+            printf("ERROR\tThe name server does not support the requested kind of query.\n");
+            return -1;
+
+        case 5:
+            printf("ERROR\tThe name server refused to perform the specified operation.");
+            break;
+
+        default:
+            printf("ERROR\tUnspecified RCODE error.\n");
+            return -1;
+    }
+
+    unsigned short qdcount = ntohs(response[2]);
+    unsigned short ancount = ntohs(response[3]);
+    unsigned short nscount = ntohs(response[4]);
+    unsigned short arcount = ntohs(response[5]);
+    if (qdcount != 0) {
+        printf("ERROR\tDNS server returned a question instead on an answer.\n");
+    }
+
 	// print out the result
+    printf("IP\t%s\t%s\n", ip, auth_str);
+    printf("CNAME\t");
 
     free(packet);
     free(question);
+    free(server);
 
 	return 0;
 }
