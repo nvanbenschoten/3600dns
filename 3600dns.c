@@ -460,7 +460,7 @@ int main(int argc, char *argv[]) {
     unsigned short rdlength = ntohs(*((unsigned short *)(response+q_offset)));
     q_offset += 2;
 
-    char ip[5] = {0};
+    unsigned char ip[5] = {0};
     //char
     char cname[254] = {0};
     char ns_name[254] = {0};
