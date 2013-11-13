@@ -127,7 +127,7 @@ int main(int argc, char *argv[]) {
         return -1;
 	}
 
-	/* construct the DNS request */
+	// construct the DNS request
 
     // DNS Packet Header
     unsigned char header[12];
@@ -137,16 +137,16 @@ int main(int argc, char *argv[]) {
 
     header[2] = 0x1; // set QR, Opcode, AA, TC, and RD
     header[3] = 0x0; // set RA, Z, and RCODE
-    // set QDCOUNT
+    // set QDCOUNT = 1
     header[4] = 0x0;
     header[5] = 0x1;
-    // set ANCOUNT
+    // set ANCOUNT = 0
     header[6] = 0x0;
     header[7] = 0x0;
-    // set NSCOUNT
+    // set NSCOUNT = 0
     header[8] = 0x0;
     header[9] = 0x0;
-    // set ARCOUNT
+    // set ARCOUNT = 0
     header[10] = 0x0;
     header[11] = 0x0;
 
@@ -156,10 +156,8 @@ int main(int argc, char *argv[]) {
     
     unsigned char *question = (unsigned char *) calloc(len+6, sizeof(unsigned char));
     assert(question != NULL);
-    //unsigned int question_len = len+6;
-    // len + 6 because . = octet, so need one additional octet for first subdomain and then
-    // QTYPE and QCLASS
-    //unsigned int i = 0;
+    // len + 6 because . -> label length octet, so need one additional octet for first 
+    // subdomain and then NULL terminator (1), QTYPE (2), and QCLASS (2) 
     unsigned int offset = 0; // index of beginning of a length octet in QNAME
     unsigned int sublen = 0;
     while (offset < len) {
@@ -179,7 +177,7 @@ int main(int argc, char *argv[]) {
     // set null terminator
     question[len+1] = 0x0;
 
-    // set QTYPE
+    // set QTYPE depending on record type requested
     question[len+2] = 0x0;
     switch (record_flag) {
         case RECORD_A:
@@ -197,11 +195,11 @@ int main(int argc, char *argv[]) {
             free(server);
             return -1;
     }
-    // set QCLASS
+    // set QCLASS = 1
     question[len+4] = 0x0;
     question[len+5] = 0x1;
 
-    // merge question and header into one
+    // merge question and header into one packet for sending
     int packet_length = 12+len+6;
     unsigned char * packet = (unsigned char *)calloc(packet_length, sizeof(unsigned char));
     assert(packet != NULL);
@@ -210,7 +208,7 @@ int main(int argc, char *argv[]) {
     memcpy(packet+12, question, len+6);
 
     // send the DNS request (and call dump_packet with your request)
-    dump_packet(packet, packet_length);
+    dump_packet(packet, packet_length); // dump packet for tests
 
     /* Send packet */
 
@@ -247,7 +245,7 @@ int main(int argc, char *argv[]) {
 	t.tv_usec = 0;
 
     // create a buffer to be used for the response
-    unsigned char response[188] = {0}; // 1500 bits
+    unsigned char response[188] = {0}; // 1504 bits, fits the max of 1500
     unsigned int response_len = 188;
 
 	// wait to receive, or for a timeout
@@ -269,16 +267,14 @@ int main(int argc, char *argv[]) {
     free(packet);
 
     /* parse received packet */
-    // parse response header
+    // parse response header into usable data using bit masking and shifting
     char * auth_str;
     unsigned short id = ntohs(*((unsigned short *)(response)));
     unsigned char qr = (*(response+2) & 0x80) >> 7;
     unsigned char opcode = (*(response+2) & 0x78) >> 3;
     unsigned char aa = (*(response+2) & 0x4) >> 2;
     unsigned char tc = (*(response+2) & 0x2) >> 1;
-    //unsigned char rd = *(response+2) & 0x1;
     unsigned char ra = (*(response+3) & 0x80) >> 7;
-    //unsigned char z  = (*(response+3) & 0x70) >> 4;
     unsigned char rcode = *(response+3) & 0xF;
 
     if (id != 0x539) { // if ID is not 1337
@@ -286,42 +282,41 @@ int main(int argc, char *argv[]) {
         free(question);
         return -1;
     }
-    if (qr != 1) {
+
+    if (qr != 1) { // if QR is not 1
         printf("ERROR\tDNS server returned invalid QR.\n");
         free(question);
         return -1;
     }
-    if (opcode) {
+
+    if (opcode) { // if we received an opcode other than 0
         printf("ERROR\tDNS server returned invalid OPCODE.\n");
         free(question);
         return -1;
     }
+
     if (aa) { // if response is authoritative
         auth_str = "auth";
     }
-    else {
+    else { // response is non-authoritative
         auth_str = "nonauth";
     }
-    if (tc) {
+
+    if (tc) { // if the message was truncated
         printf("ERROR\tDNS server truncated message.\n");
         free(question);
         return -1;
     }
-    /*if (rd != 1) { // dunno if this error is necessary
-        printf("ERROR\tRecursion is not desired.\n");
-    }*/
+
     if (!ra) {
         printf("ERROR\tDNS server recursion was not available.\n");
         free(question);
         return -1;
     }
-    /*if (!z) { // this is probably not necessary
-        printf("ERROR\tZ was not zero.\n");
-        return -1;
-    }*/
+
     switch (rcode) {
         case 0:
-            // rcode good!
+            // rcode is good, no error condition!
             break;
         case 1:
             printf("ERROR\tName server was unable to interpret the query.\n");
@@ -349,36 +344,38 @@ int main(int argc, char *argv[]) {
             return -1;
     }
 
-    //unsigned short qdcount = ntohs(response[2]);
     unsigned short qdcount = ntohs(*((unsigned short *)(response+4)));
-    //unsigned short ancount = ntohs(response[3]);
     unsigned short ancount = ntohs(*((unsigned short *)(response+6)));
-    // unsigned short nscount = ntohs(response[4]);
-    // unsigned short arcount = ntohs(response[5]);
-    if (qdcount != 1) { // NOT SURE IF THIS IS A NECESSARY ERROR
+    
+    if (qdcount != 1) { // if the DNS server returned more questions than we asked 
         printf("ERROR\tDNS server returned an invalid question count.\n");
     }
 
-    // 253 for max length
+    // 253 for max length of DNS string + 1 for NULL terminator
     unsigned char * return_name = (unsigned char *)calloc(254, sizeof(unsigned char));
+    // TODO where can/do we need to free return_name?
     assert(return_name != NULL);
     
     // check that question is the same as what we sent out
-    //int i = 0;
     char q_name[254] = {0};
 
     int q_offset = 12;
-    if(parseLabel(response, &q_offset, q_name)) {// TODO see if this call is correct
-        // DO shit
+    // parse question response label
+    if(parseLabel(response, &q_offset, q_name)) { // if there was an error parsing
+        printf("ERROR\tProblem parsing response QNAME.\n");
+        free(question);
+        return -1;
     }
     if (strcmp(q_name, domain)) { // if the received name and sent name differ
         printf("ERROR\tServer returned invalid question domain.\n");
         free(question);
         return -1;
     }
-    unsigned short qtype_r = ntohs(*((unsigned short *)(response+q_offset))); // TODO fix offset correctness
+
+    unsigned short qtype_r = ntohs(*((unsigned short *)(response+q_offset)));
     q_offset += 2;
-    switch (record_flag) {
+
+    switch (record_flag) { // compare whether received question record type matches sent type
         case RECORD_A:
             if (qtype_r != 0x0001) {
                 printf("ERROR\tDNS server returned invalid question type.\n");
@@ -406,26 +403,31 @@ int main(int argc, char *argv[]) {
 	  	    return -1;
     }
 
+    // check validity of received question's QCLASS
     unsigned short qclass_r = ntohs(*((unsigned short *)(response+q_offset)));
     q_offset += 2;
+
     if (qclass_r != 0x0001) {
         printf("ERROR\tDNS server returned invalid QCLASS.\n");
         free(question);
         return -1;
     }
 
-    // parse answer packet
-    // parseLabel takes in:
-    // packet, offset, buffer
-    // returns offset of type code
+    // parse answer sections of the received packet
     unsigned short i = 0;
-    for (i = 0; i < ancount; i++) {
+    for (i = 0; i < ancount; i++) { // for all of the answers received
+        // TODO, need some check if ANCOUNT is wrong?
+        // could just do if response len < 4 octets then we know for sure its wrong, but this
+        // is problematic, probably should just check if length is under minimum record length
+        // for that record type and error if that happens
 
         char domain_name[254] = {0};
         //unsigned int type_offset;
 
         if (parseLabel(response, &q_offset, domain_name)) {
-            // Do shit
+            printf("ERROR\tProblem parsing response domain name.\n");
+            free(question);
+            return -1;
         }
         if (i == 0 && strcmp(domain_name, domain)) { // if the domain name doesn't match the sent domain name
             printf("ERROR\tDNS server returned invalid answer domain name.\n");
@@ -434,43 +436,33 @@ int main(int argc, char *argv[]) {
         }
 
         unsigned short atype = ntohs(*((unsigned short *)(response+q_offset)));
-        // check whether type is a, cname, ns, mx
-        /*switch (atype) {
-            case 0x0001: // A record
-                break;
-            case 0x0005: // CNAME record
-                break;
-            case 0x0002: // NS record
-                break;
-            case 0x000f: // MX record
-                break;
-            default:
-                printf("ERROR\tDNS server returned invalid answer type.\n");
-                free(question);
-                return -1;
-        }*/
         q_offset += 2;
+
         unsigned short aclass = ntohs(*((unsigned short *)(response+q_offset)));
         if (aclass != 0x0001) {
             printf("ERROR\tDNS server returned invalid answer class.\n");
             free(question);
             return -1;
         }
-        q_offset += 2;
+        q_offset += 8;
+        //q_offset += 2;
         //unsigned int ttl = ntohl(*((unsigned int *)(response+q_offset)));
-        q_offset += 4;
+        //q_offset += 4;
         //unsigned short rdlength = ntohs(*((unsigned short *)(response+q_offset)));
-        q_offset += 2;
+        //q_offset += 2;
 
         unsigned char ip[5] = {0};
-        //char
         char cname[254] = {0};
         char ns_name[254] = {0};
         char mx_name[254] = {0};
         unsigned short mx_pref;
 
+        // check whether type is a, cname, ns, mx
+        // and print output accordingly
+        // TODO: check if q_offset is > length of received response here
+        //       also add in error checking for parseLabel
         switch (atype) {
-            case 0x0001: // A reord
+            case 0x0001: // A record
                 ip[0] = *(response+q_offset);
                 q_offset++;
                 ip[1] = *(response+q_offset);
@@ -482,17 +474,29 @@ int main(int argc, char *argv[]) {
                 printf("IP\t%d.%d.%d.%d\t%s\n", ip[0], ip[1], ip[2], ip[3], auth_str);
                 break;
             case 0x0005: // CNAME record
-                parseLabel(response, &q_offset, cname);
+                if (parseLabel(response, &q_offset, cname)) {
+                    printf("ERROR\tProblem parsing response CNAME.\n");
+                    free(question);
+                    return -1;
+                }
                 printf("CNAME\t%s\t%s\n", cname, auth_str);
                 break;
             case 0x0002: // NS record
-                parseLabel(response, &q_offset, ns_name);
+                if (parseLabel(response, &q_offset, ns_name)) {
+                    printf("ERROR\tProblem parsing response NS.\n");
+                    free(question);
+                    return -1;
+                }
                 printf("NS\t%s\t%s\n", ns_name, auth_str);
                 break;
             case 0x000f: // MX record
                 mx_pref = ntohs(*((unsigned short *)(response+q_offset)));
                 q_offset += 2;
-                parseLabel(response, &q_offset, mx_name);
+                if (parseLabel(response, &q_offset, mx_name)) {
+                    printf("ERROR\tProblem parsing response MX exchange.\n");
+                    free(question);
+                    return -1;
+                }
                 printf("MX\t%s\t%d\t%s\n", mx_name, mx_pref, auth_str);
                 break;
             default:
@@ -501,12 +505,9 @@ int main(int argc, char *argv[]) {
                 return -1;
         }
     }
-    
-	// print out the result
-    //printf("CNAME\t");
 
     // Free rest of malloced memory
-    free(question);
+    free(question); // TODO: do we need an additonal free for return_name?
 
 	return 0;
 }
@@ -565,7 +566,7 @@ int parseInputServer(char *server, short *port) {
 	return 0;
 }
 
-// Parses a label from the packet and an offset, storing the resutls in name
+// Parses a label from the packet and an offset, storing the results in name
 int parseLabel(unsigned char *packet, int *offset, char *name) {
     int first = 1;
     while (packet[*offset] != '\0' ) {   
@@ -604,7 +605,7 @@ int parseLabel(unsigned char *packet, int *offset, char *name) {
                 }
 
 
-                // Increament offset
+                // Increment offset
                 *offset = *offset + label_size + 1;
                 break;
             case 3:
