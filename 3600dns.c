@@ -373,7 +373,7 @@ int main(int argc, char *argv[]) {
         printf("ERROR\tServer returned invalid question domain.\n");
         free(question);
     }
-    unsigned short qtype_r = ntohs(*((short *)(response+q_offset))); // TODO fix offset correctness
+    unsigned short qtype_r = ntohs(*((unsigned short *)(response+q_offset))); // TODO fix offset correctness
     q_offset += 2;
     switch (record_flag) {
         case RECORD_A:
@@ -403,7 +403,7 @@ int main(int argc, char *argv[]) {
 	  	    return -1;
     }
 
-    unsigned short qclass_r = ntohs(*((short *)(response+q_offset)));
+    unsigned short qclass_r = ntohs(*((unsigned short *)(response+q_offset)));
     q_offset += 2;
     if (qclass_r != 0x0001) {
         printf("ERROR\tDNS server returned invalid QCLASS.\n");
@@ -419,7 +419,7 @@ int main(int argc, char *argv[]) {
     char domain_name[254] = {0};
     //unsigned int type_offset;
 
-    if(parseLabel(response, &q_offset, domain_name)) {
+    if (parseLabel(response, &q_offset, domain_name)) {
         // Do shit
     }
     if (strcmp(domain_name, domain)) { // if the domain name doesn't match the sent domain name
@@ -428,9 +428,9 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    unsigned short atype = ntohs(*((short *)(response+q_offset)));
+    unsigned short atype = ntohs(*((unsigned short *)(response+q_offset)));
     // check whether type is a, cname, ns, mx
-    switch (atype) {
+    /*switch (atype) {
         case 0x0001: // A record
             break;
         case 0x0005: // CNAME record
@@ -443,12 +443,61 @@ int main(int argc, char *argv[]) {
             printf("ERROR\tDNS server returned invalid answer type.\n");
             free(question);
             return -1;
+    }*/
+    q_offset += 2;
+    unsigned short aclass = ntohs(*((unsigned short *)(response+q_offset)));
+    if (aclass != 0x0001) {
+        printf("ERROR\tDNS server returned invalid answer class.\n");
+        free(question);
+        return -1;
     }
+    q_offset += 2;
+    unsigned int ttl = ntohl(*((unsigned int *)(response+q_offset)));
+    q_offset += 4;
+    unsigned short rdlength = ntohs(*((unsigned short *)(response+q_offset)));
+    q_offset += 2;
 
-    char * ip;
+    char ip[5] = {0};
+    //char
+    char cname[254] = {0};
+    char ns_name[254] = {0};
+    char mx_name[254] = {0};
+    unsigned short mx_pref;
+
+    switch (atype) {
+        case 0x0001: // A reord
+            ip[0] = *(response+q_offset);
+            q_offset++;
+            ip[1] = *(response+q_offset);
+            q_offset++;
+            ip[2] = *(response+q_offset);
+            q_offset++;
+            ip[3] = *(response+q_offset);
+            q_offset++;
+            printf("IP\t%d.%d.%d.%d\t%s\n", ip[0], ip[1], ip[2], ip[3], auth_str);
+            break;
+        case 0x0005: // CNAME record
+            parseLabel(response, &q_offset, cname);
+            printf("CNAME\t%s\t%s\n", cname, auth_str);
+            break;
+        case 0x0002: // NS record
+            parseLabel(response, &q_offset, ns_name);
+            printf("NS\t%s\t%s\n", ns_name, auth_str);
+            break;
+        case 0x000f: // MX record
+            mx_pref = ntohs(*((unsigned short *)(response+q_offset)));
+            q_offset += 2;
+            parseLabel(response, &q_offset, mx_name);
+            printf("MX\t%s\t%d\t%s\n", mx_name, mx_pref, auth_str);
+            break;
+        default:
+            printf("ERROR\tDNS server returned invalid answer type.\n");
+            free(question);
+            return -1;
+    }
+    
 	// print out the result
-    printf("IP\t%s\t%s\n", ip, auth_str);
-    printf("CNAME\t");
+    //printf("CNAME\t");
 
     // Free rest of malloced memory
     free(question);
