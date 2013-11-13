@@ -608,8 +608,7 @@ int parseLabel(unsigned char *packet, int *offset, char *name) {
                 // Pointer tag
 
                 // Finds new location and calls parseLabel
-                new_offset = ntohs((*((unsigned short *)(packet + *offset)))) & 0x3fff;
-                
+                new_offset = ntohs(*((unsigned short *)(packet + *offset))) & 0x3fff;
                 parseLabel(packet, &new_offset, name);
 
                 // Increments offset and returns
