@@ -93,7 +93,7 @@ int main(int argc, char *argv[]) {
 	// process the arguments
 	if (argc < 3) {
 	  	printf("Error: Usage: ./3600dns [-ns|-mx] @<server:port> <name>\n");
-	  	return 1;
+	  	return -1;
 	}
  
     // Get flags if available
@@ -107,8 +107,8 @@ int main(int argc, char *argv[]) {
         name_index++;
 
         if(parseInputFlags(argv[1], &record_flag)) {
-            printf("Error parsing input flags\n");
-            return 1;
+            printf("Error\tParsing input flags\n");
+            return -1;
         }
     }
 
@@ -120,8 +120,9 @@ int main(int argc, char *argv[]) {
 	short port = 53;
 
 	if(parseInputServer(server, &port)) {
-		printf("Error parsing input server\n");
-	  	return 1;
+		printf("Error\tParsing input server\n");
+	  	free(server);
+        return -1;
 	}
 
 	/* construct the DNS request */
@@ -150,7 +151,10 @@ int main(int argc, char *argv[]) {
     // DNS Packet Question
     char * domain = argv[name_index];
     unsigned int len = strlen(domain);
+    
     unsigned char *question = (unsigned char *) calloc(len+6, sizeof(unsigned char));
+    assert(question != NULL);
+
     // len + 6 because . = octet, so need one additional octet for first subdomain and then
     // QTYPE and QCLASS
     //unsigned int i = 0;
@@ -164,7 +168,6 @@ int main(int argc, char *argv[]) {
             offset++;
         }
         // update string length
-        //question[offset-sublen] = (0xFF & sublen) >> 8;
         question[offset-sublen] = sublen;
         sublen = 0;
         // increase offset
@@ -187,20 +190,27 @@ int main(int argc, char *argv[]) {
             question[len+3] = 0x2;
             break;
         default:         
-		    printf("Error with input flags\n");
-	  	    return 1;
+		    printf("Error\tInvalid input flag\n");
+	  	    free(question);
+            free(server);
+            return -1;
     }
     // set QCLASS
     question[len+4] = 0x0;
     question[len+5] = 0x1;
 
     // merge question and header into one
-    unsigned char * packet = (unsigned char *) calloc(12+len+6, sizeof(unsigned char));
+    int packet_length = 12+len+6;
+    unsigned char * packet = (unsigned char *)calloc(packet_length, sizeof(unsigned char));
+    assert(packet != NULL);
+    
     memcpy(packet, header, 12);
     memcpy(packet+12, question, len+6);
 
     // send the DNS request (and call dump_packet with your request)
-    dump_packet(packet, 12+len+6);
+    dump_packet(packet, packet_length);
+
+    /* Send packet */
 
 	// first, open a UDP socket  
 	int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -212,8 +222,12 @@ int main(int argc, char *argv[]) {
 	out.sin_addr.s_addr = inet_addr(server);
 	free(server);
 
-	if (sendto(sock, packet, 12+len+6, 0, (struct sockaddr *) &out, sizeof(out)) < 0) {
+	if (sendto(sock, packet, packet_length, 0, (struct sockaddr *) &out, sizeof(out)) < 0) {
 		// an error occurred
+        printf("ERROR\tSending packet failed\n");
+        free(question);
+        free(packet);
+        return -1;
 	}
 
 	// wait for the DNS reply (timeout: 5 seconds)
@@ -238,7 +252,7 @@ int main(int argc, char *argv[]) {
 	if (select(sock + 1, &socks, NULL, NULL, &t)) {
 		if (recvfrom(sock, response, response_len, 0, (struct sockaddr *) &in, &in_len) < 0) {
 			// an error occured
-            printf("ERROR\tProblem receiving packet\n")
+            printf("ERROR\tProblem receiving packet\n");
             free(question);
             free(packet);
             return -1;
@@ -247,8 +261,10 @@ int main(int argc, char *argv[]) {
         printf("NORESPONSE\n");
         free(question);
         free(packet);
+        return -1;
 		// a timeout occurred
 	}
+    free(packet);
 
     // parse received packet
     char * auth_str;
@@ -264,14 +280,17 @@ int main(int argc, char *argv[]) {
 
     if (id != 0x539) { // if ID is not 1337
         printf("ERROR\tDNS server returned an invalid response ID.\n");
+        free(question);
         return -1;
     }
     if (qr != 1) {
         printf("ERROR\tDNS server returned invalid QR.\n");
+        free(question);
         return -1;
     }
     if (opcode) {
-        printf("ERROR\tDNS server returned invalid OPCODE.\n")
+        printf("ERROR\tDNS server returned invalid OPCODE.\n");
+        free(question);
         return -1;
     }
     if (aa) { // if response is authoritative
@@ -282,6 +301,7 @@ int main(int argc, char *argv[]) {
     }
     if (tc) {
         printf("ERROR\tDNS server truncated message.\n");
+        free(question);
         return -1;
     }
     /*if (rd != 1) { // dunno if this error is necessary
@@ -289,6 +309,7 @@ int main(int argc, char *argv[]) {
     }*/
     if (!ra) {
         printf("ERROR\tDNS server recursion was not available.\n");
+        free(question);
         return -1;
     }
     /*if (!z) { // this is probably not necessary
@@ -297,31 +318,31 @@ int main(int argc, char *argv[]) {
     }*/
     switch (rcode) {
         case 0:
-            
+            // rcode good!
             break;
-
         case 1:
             printf("ERROR\tName server was unable to interpret the query.\n");
+            free(question);
             return -1;
-
         case 2:
             printf("ERROR\tServer failure.\n");
+            free(question);
             return -1;
-
         case 3:
             printf("NOTFOUND\n");
+            free(question);
             return -1;
-
         case 4:
             printf("ERROR\tThe name server does not support the requested kind of query.\n");
+            free(question);
             return -1;
-
         case 5:
             printf("ERROR\tThe name server refused to perform the specified operation.");
-            break;
-
+            free(question);
+            return -1;
         default:
             printf("ERROR\tUnspecified RCODE error.\n");
+            free(question);
             return -1;
     }
 
@@ -333,18 +354,27 @@ int main(int argc, char *argv[]) {
         printf("ERROR\tDNS server returned a question instead on an answer.\n");
     }
 
+
+
+    // 253 for max length
+    unsigned char * return_name = (unsigned char *)calloc(254, sizeof(unsigned char));
+    assert(return_name != NULL);
+    
+
+
 	// print out the result
     printf("IP\t%s\t%s\n", ip, auth_str);
     printf("CNAME\t");
 
-    free(packet);
+    // Free rest of malloced memory
     free(question);
-    free(server);
 
 	return 0;
 }
 
-// Helper functions
+/* Helper functions */
+
+// Parses the command line inputs, taking flags into consideration
 int parseInputFlags(char *flag_string, int *flag_pointer) {
     // Compare wit name server flag
     if (!strcmp(flag_string, "-ns")) {
@@ -361,6 +391,7 @@ int parseInputFlags(char *flag_string, int *flag_pointer) {
     return -1;
 }
 
+// Parses the server and port from the server:port string
 int parseInputServer(char *server, short *port) {
 	// Shift server string over one byte;
 	int i;
@@ -393,4 +424,61 @@ int parseInputServer(char *server, short *port) {
 
 	free(portString);
 	return 0;
+}
+
+// Parses a label from the packet and an offset, storing the resutls in name
+int parseLabel(char *packet, int *offset, char *name) {
+    while (packet[*offset] != '\0' ) {   
+        // Gets the label tag 
+        char tag = (packet[*offset] & 0xC0) >> 6;
+
+        int i;
+        int j;
+        int label_size;
+        int new_offset;
+
+        switch (tag) {
+            case 0:
+                // Normal tag
+                label_size = packet[*offset];
+                
+                // Put . in name
+                for (j = 0; name[j] != '\0'; j++) {}
+
+                name[j] = '.';
+                name[j + 1] = '\0'; 
+                
+                // Get characters
+                for (i = 1; i <= label_size; i++) {
+                    char a = packet[*offset + i];
+
+                    // Place in name array
+                    for (j = 0; name[j] != '\0'; j++) {}
+
+                    name[j] = a;
+                    name[j + 1] = '\0'; 
+                }
+
+
+                // Increament offset
+                *offset = *offset + label_size + 1;
+                break;
+            case 3:
+                // Pointer tag
+
+                // Finds new location and calls parseLabel
+                new_offset = (*((short *)(packet + *offset)) & 0x3fff);
+                parseLabel(packet, &new_offset, name);
+
+                // Increments offset and returns
+                *offset = *offset + 2;
+                return 0;
+
+            default:
+                // If this is reached, there was an error
+                return -1;
+        }
+    }
+
+    return 0;
 }
