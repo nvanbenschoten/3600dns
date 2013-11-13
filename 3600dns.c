@@ -574,21 +574,21 @@ int parseLabel(unsigned char *packet, int *offset, char *name) {
         int label_size;
         int new_offset;
 
+        // Put . in name
+        for (j = 0; name[j] != '\0'; j++) {}
+        if (!first) {
+            name[j] = '.';
+            name[j + 1] = '\0'; 
+        }
+        else {
+            first = 0;
+        }
+
         switch (tag) {
             case 0:
                 // Normal tag
                 label_size = packet[*offset];
                 
-                // Put . in name
-                for (j = 0; name[j] != '\0'; j++) {}
-                if (!first) {
-                    name[j] = '.';
-                    name[j + 1] = '\0'; 
-                }
-                else {
-                    first = 0;
-                }
-
                 // Get characters
                 for (i = 1; i <= label_size; i++) {
                     char a = packet[*offset + i];
@@ -608,12 +608,7 @@ int parseLabel(unsigned char *packet, int *offset, char *name) {
                 // Pointer tag
 
                 // Finds new location and calls parseLabel
-                new_offset = (*((short *)(packet + *offset)) & 0x3fff);
-                
-                // Add . in 
-                for (j = 0; name[j] != '\0'; j++) {}
-                name[j] = '.';
-                name[j + 1] = '\0'; 
+                new_offset = ntohs((*((unsigned short *)(packet + *offset)))) & 0x3fff;
                 
                 parseLabel(packet, &new_offset, name);
 
@@ -627,6 +622,6 @@ int parseLabel(unsigned char *packet, int *offset, char *name) {
                 return -1;
         }
     }
-    
+    *offset = *offset + 1;
     return 0;
 }
