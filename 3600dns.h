@@ -16,6 +16,7 @@ enum RECORDS {
 
 int parseInputFlags(char *flag_string, int *flag_pointer);
 int parseInputServer(char *server, short *port);
+int parseLabel(unsigned char *packet, int *offset, char *name);
 
 #endif
 

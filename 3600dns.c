@@ -363,16 +363,18 @@ int main(int argc, char *argv[]) {
     
     // check that question is the same as what we sent out
     //int i = 0;
-    unsigned int q_offset;
     char q_name[254] = {0};
 
-    q_offset = parseLabel(response, 12, q_name); // TODO see if this call is correct
+    int q_offset = 12;
+    if(parseLabel(response, &q_offset, q_name)) {// TODO see if this call is correct
+        // DO shit
+    }
     if (strcmp(q_name, domain)) { // if the received name and sent name differ
         printf("ERROR\tServer returned invalid question domain.\n");
         free(question);
     }
     unsigned short qtype_r = ntohs(*((short *)(response+q_offset))); // TODO fix offset correctness
-    q_offset+2;
+    q_offset += 2;
     switch (record_flag) {
         case RECORD_A:
             if (qtype_r != 0x0001) {
@@ -417,7 +419,9 @@ int main(int argc, char *argv[]) {
     char domain_name[254] = {0};
     //unsigned int type_offset;
 
-    q_offset = parseLabel(response, q_offset, domain_name);
+    if(parseLabel(response, &q_offset, domain_name)) {
+        // Do shit
+    }
     if (strcmp(domain_name, domain)) { // if the domain name doesn't match the sent domain name
         printf("ERROR\tDNS server returned invalid answer domain name.\n");
         free(question);
@@ -435,7 +439,7 @@ int main(int argc, char *argv[]) {
             break;
         case 0x000f: // MX record
             break;
-        case default:
+        default:
             printf("ERROR\tDNS server returned invalid answer type.\n");
             free(question);
             return -1;
@@ -507,7 +511,7 @@ int parseInputServer(char *server, short *port) {
 }
 
 // Parses a label from the packet and an offset, storing the resutls in name
-int parseLabel(char *packet, int *offset, char *name) {
+int parseLabel(unsigned char *packet, int *offset, char *name) {
     while (packet[*offset] != '\0' ) {   
         // Gets the label tag 
         char tag = (packet[*offset] & 0xC0) >> 6;
