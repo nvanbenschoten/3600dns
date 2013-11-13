@@ -564,6 +564,7 @@ int parseInputServer(char *server, short *port) {
 
 // Parses a label from the packet and an offset, storing the resutls in name
 int parseLabel(unsigned char *packet, int *offset, char *name) {
+    int first = 1;
     while (packet[*offset] != '\0' ) {   
         // Gets the label tag 
         char tag = (packet[*offset] & 0xC0) >> 6;
@@ -580,10 +581,14 @@ int parseLabel(unsigned char *packet, int *offset, char *name) {
                 
                 // Put . in name
                 for (j = 0; name[j] != '\0'; j++) {}
+                if (!first) {
+                    name[j] = '.';
+                    name[j + 1] = '\0'; 
+                }
+                else {
+                    first = 0;
+                }
 
-                name[j] = '.';
-                name[j + 1] = '\0'; 
-                
                 // Get characters
                 for (i = 1; i <= label_size; i++) {
                     char a = packet[*offset + i];
@@ -604,10 +609,17 @@ int parseLabel(unsigned char *packet, int *offset, char *name) {
 
                 // Finds new location and calls parseLabel
                 new_offset = (*((short *)(packet + *offset)) & 0x3fff);
+                
+                // Add . in 
+                for (j = 0; name[j] != '\0'; j++) {}
+                name[j] = '.';
+                name[j + 1] = '\0'; 
+                
                 parseLabel(packet, &new_offset, name);
 
                 // Increments offset and returns
                 *offset = *offset + 2;
+                
                 return 0;
 
             default:
@@ -615,6 +627,6 @@ int parseLabel(unsigned char *packet, int *offset, char *name) {
                 return -1;
         }
     }
-
+    
     return 0;
 }
