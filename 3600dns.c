@@ -116,6 +116,8 @@ int main(int argc, char *argv[]) {
     char *server = (char *)calloc(strlen(argv[server_index]), sizeof(char));
 	assert(server != NULL);
 
+    strcpy(server, argv[server_index]);
+
 	// Default port number
 	short port = 53;
 
@@ -275,9 +277,9 @@ int main(int argc, char *argv[]) {
     unsigned char aa = (*(response+2) & 0x4) >> 2;
     unsigned char tc = (*(response+2) & 0x2) >> 1;
     unsigned char rd = *(response+2) & 0x1;
-    unsigned char ra = (*(response+2) & 0x80) >> 7;
-    unsigned char z  = (*(response+2) & 0x70) >> 4;
-    unsigned char rcode = *(response+2) & 0xF;
+    unsigned char ra = (*(response+3) & 0x80) >> 7;
+    unsigned char z  = (*(response+3) & 0x70) >> 4;
+    unsigned char rcode = *(response+3) & 0xF;
 
     if (id != 0x539) { // if ID is not 1337
         printf("ERROR\tDNS server returned an invalid response ID.\n");
@@ -372,6 +374,7 @@ int main(int argc, char *argv[]) {
     if (strcmp(q_name, domain)) { // if the received name and sent name differ
         printf("ERROR\tServer returned invalid question domain.\n");
         free(question);
+        return -1;
     }
     unsigned short qtype_r = ntohs(*((unsigned short *)(response+q_offset))); // TODO fix offset correctness
     q_offset += 2;
