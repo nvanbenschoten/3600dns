@@ -113,7 +113,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Allocates memory for the server char array
-    char *server = (char *)calloc(strlen(argv[server_index]), sizeof(char));
+    char *server = (char *)calloc(strlen(argv[server_index]) + 1, sizeof(char));
 	assert(server != NULL);
 
     strcpy(server, argv[server_index]);
@@ -565,6 +565,10 @@ int parseInputServer(char *server, short *port) {
 // Parses a label from the packet and an offset, storing the results in name
 int parseLabel(unsigned char *packet, int *offset, char *name) {
     int first = 1;
+
+    if (*offset > 187)
+        return -1;
+
     while (packet[*offset] != '\0' ) {   
         // Gets the label tag 
         char tag = (packet[*offset] & 0xC0) >> 6;
@@ -575,7 +579,10 @@ int parseLabel(unsigned char *packet, int *offset, char *name) {
         int new_offset;
 
         // Put . in name
-        for (j = 0; name[j] != '\0'; j++) {}
+        for (j = 0; name[j] != '\0'; j++) {
+            if (j > 253)
+                return -1;
+        }
         if (!first) {
             name[j] = '.';
             name[j + 1] = '\0'; 
@@ -594,7 +601,10 @@ int parseLabel(unsigned char *packet, int *offset, char *name) {
                     char a = packet[*offset + i];
 
                     // Place in name array
-                    for (j = 0; name[j] != '\0'; j++) {}
+                    for (j = 0; name[j] != '\0'; j++) {
+                        if (j > 253)
+                            return -1;
+                    }
 
                     name[j] = a;
                     name[j + 1] = '\0'; 
