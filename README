@@ -49,43 +49,22 @@ We implement almost all of the core functionality that an end user would expect 
 
 - Helper Functions
 
-seperatePathAndName
-This function is given a path char point and a blank name char pointer. Using the index of the last '/', it fills the path character array with the path and the name character array with the file name
+parseInputFlags
+This function parses the input flags if one is passed in. It does this by comparing the flag string to the known valid flags. It will return an error if the flag is not valid. The function is called if there are more than 2 arguments passed into the program, indicating the use of an optional flag.
 
-findDNODE
-This function recursively steps through the file system using a path string which it modifies as it goes. The function takes a dnode (the root dnode during the first time it is called), a dnode path, and a blocknum pointer that it can fill in when it finds the needed dnode. It searches a dnodes direntries to find another dnode with the next needed dnode and will then call itself with this dnode and shortened path. When it is called with a path of '' or '/' it returns because it has found the correct dnode (which is currently in *directory)
+parseInputServer
+This function divides the server/port string into its corresponding data. If first strips off the @ from the front of the string, then iterates through it until it finds a ':' signifying the specification of a non-defualt port. If this non default port, the part of the string after the port is converted to a short and put in the place of port.
 
-getNODE
-This function takes a directory, a name, pointers to an inode and a dnode it can fill in if it finds one, a return blocknumber, and a few flags. The function searches in the given directory for a valid direntry with the smae name as the passed in name. If it find it, it will set either the inode or the dnode pointers to the block and return. Additionally, the function takes two flags which allows it to perform other actions when the correct direntry is found. If the delete flag is set, the direntry will be set to invalid, and the dirent and the indirents will be deleted if they need to be. The directoryBlock also must be passed in in this case so that it can be written to update its state. If the rename flag is set, the direntry wil be renamed with the passed in new name.
-
-getNextFree
-This function gets the next free block from the vcb. If no free blocks are available, it returns an error. It also updates the vcb with the next available free block for its free block list. 
-
-releaseFree
-Releases a block by adding it to the vcb's free list and setting it to valid, finally writing the now freeblock to disk.
-
-getName and setName
-Deals with direntries so that a name with 27 characters not including the null terminator can be stored in the 27 byte buffer. It also allows this buffer to be translated to a null terminated string. 
-
-bufdread and bufwrite
-Abstracts the details of the disk interface away by dealing with casting to BLOCKSIZE char arrays and handling disk errors. Later was used to implement a cache without needing to change any code within the file system API. 
-
-checkIntegrity
-Performs a basic integrity check of the disk. This is called when the disk was not unmounted safely. The integrity check is done by first recording the locations of all known free blocks. We then traverse all dnodes and inodes, either recording their positions or marking them as invalid if there is a conflict with the free block list. Within inodes we check all data blocks and mark those as well. Finally we check for blocks that were not marked as either, and assume that those can be readded to the free list as they are not referenced by anything.
-
-checkDNODE
-Recursively checks through all dnodes, marking their status and fixing blocks that are already in the free list. This also updates the size of the dnode. This also calls checkINODE when it encounters an inode direntry.
-
-checkINODE
-Goes through an inode and checks all of its data blocks marking their status and fixing blocks that are already in the free list. At the end the size of the inode is also updated if it needs to be.
+parseLabel
+This function recursively parses labels into their corresponding string. It does this by taking in the packet, the labels beginning offset in the label, and the name buffer where the label is to be placed. It first checks the first two bits of the label to determine if the label is a pointer or a normal label. Next, depending on if the label is a pointer or a normal label, it handles parsing it into a string. If the label contains the actual data, the bytes are interated through and added to the string, making sure to add the '.' where they belong. If the label is a pointer, the data is read out as the new offset, and the fucntion is called recursively on this offset.
 
 ----------------------
  Challenges Faced
 ----------------------
 
-We faced a number of challenges when creating our DNS Client. The first was handling 
+We faced a number of challenges when creating our DNS Client. The first was handling endianness differences between the network and our system. Because all network data was stored in a big endian format and all system data was stored in a little endian format, we had to be very careful when interpreting multiple-byte data. This challenge was faced by using functions from c's inet library called htons, htonl, ntohs, and ntohl. These functions translated data to the correct endianness, allowing it to correctly interpretted. We used these functions whenever dealing with multi-byte data in our program.
 
-Antoher challenge faced in the development of our system was handling DNS packet compression. In order to reduce the size of a message, domain systems utilize a compression scheme wherein they replace duplicated domain names in the NAME, QNAME, and RDATA with pointers to the prior occurrence of hte same name. This scheme results in the
+Antoher challenge faced in the development of our system was handling DNS packet compression. In order to reduce the size of a message, domain systems utilize a compression scheme wherein they replace duplicated domain names in the NAME, QNAME, and RDATA with pointers to the prior occurrence of the same name. The solution to this problem was to recursively handle label parsing. We did this in our parseLabel function, where we set the passed in offset to the value of the offset if a pointer was found while parsing a label.
 
 ----------------------
  Properties/Features
@@ -103,7 +82,7 @@ If a disk was not unmounted safely upon its last use, we perform an integrity ch
  Testing Procedure
 ----------------------
 
-We based our testing on the provided test but as our file system was split into different API functions, it was easy to debug and test those individually as we implemented them to ensure the components of our file systems were working as expected. During these tests we heavily used GDB to debug edge cases that we thought of and saw. To perform this testing, we found that we needed to run the file system in gdb in one shell, and then traverse/interact with the file system in another shell. Combining this process with a liberal use of hexdumping the disk allowed us to fully understand how our file system reacted to different actions, and where it was performing correctly and incorrectly. Throughout development we also modified the provided test to allow us to automatically test various specific cases. Additionally, we integrated git into our workflow as it provided a convenient tool for our workflow. In total we had ~150 commits. 
+We based our testing on the provided test, as well as using the debug functions like dump_packet and the linux command dig to make sure we were always sending and interpreting packets correctly. During these tests we heavily used GDB to debug edge cases that we thought of and saw. Additionally, we made a few smaller testing programs to verify that our helper functions functioned correctly in all cases, allowing us to pinpoint errors that may have gone undetected otherwise. Throughout development we also modified the provided test to allow us to automatically test various specific cases. Additionally, we integrated git into our workflow as it provided a convenient tool for our workflow. In total we had ~65 commits. 
 
 ----------------------
  Bald Eagle
