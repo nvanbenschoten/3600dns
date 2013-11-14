@@ -412,13 +412,8 @@ int main(int argc, char *argv[]) {
     // parse answer sections of the received packet
     unsigned short i = 0;
     for (i = 0; i < ancount; i++) { // for all of the answers received
-        // TODO, need some check if ANCOUNT is wrong?
-        // could just do if response len < 4 octets then we know for sure its wrong, but this
-        // is problematic, probably should just check if length is under minimum record length
-        // for that record type and error if that happens
 
         char domain_name[254] = {0};
-        //unsigned int type_offset;
 
         if (parseLabel(response, &q_offset, domain_name)) {
             printf("ERROR\tProblem parsing response domain name.\n");
@@ -441,11 +436,6 @@ int main(int argc, char *argv[]) {
             return -1;
         }
         q_offset += 8;
-        //q_offset += 2;
-        //unsigned int ttl = ntohl(*((unsigned int *)(response+q_offset)));
-        //q_offset += 4;
-        //unsigned short rdlength = ntohs(*((unsigned short *)(response+q_offset)));
-        //q_offset += 2;
 
         unsigned char ip[5] = {0};
         char cname[254] = {0};
@@ -455,8 +445,6 @@ int main(int argc, char *argv[]) {
 
         // check whether type is a, cname, ns, mx
         // and print output accordingly
-        // TODO: check if q_offset is > length of received response here
-        //       also add in error checking for parseLabel
         switch (atype) {
             case 0x0001: // A record
                 ip[0] = *(response+q_offset);
