@@ -19,13 +19,24 @@ Creating and sending the question packet was fairly simple because the question 
 
 Interpreting the response is more complicated, as it is comprised of more parts, with more dynamic sections, and we additionally have to check all of these for validity, as we cannot assume that the DNS server will give us anything meaningful or non-malicious back. To get specific values from the response, we frequently parse specific parts of the response into usable C data types using bit masking and shifting. These values are then easily comparable in simple logical statements, where we handle errors as necessary. We first ensure that the header and question sent back from the server are valid and that relevant parts of the data match what we sent. While parsing, we keep track of an offset, which allows us to support many answers fairly easily. Next we parse as many answers as we received, printing relevant information according to the program specifications, and continuing to handle errors as necessary. To help with the parsing of labels, we created a helper function parseLabel, which is discussed in more detail below, but essentially gets the text representation of the DNS packet label, and moves the offset appropriately to continue parsing.
 
+- Helper Functions
+
+parseInputFlags
+This function parses the input flags if one is passed in. It does this by comparing the flag string to the known valid flags. It will return an error if the flag is not valid. The function is called if there are more than 2 arguments passed into the program, indicating the use of an optional flag.
+
+parseInputServer
+This function divides the server/port string into its corresponding data. If first strips off the @ from the front of the string, then iterates through it until it finds a ':' signifying the specification of a non-defualt port. If this non default port, the part of the string after the port is converted to a short and put in the place of port.
+
+parseLabel
+This function recursively parses labels into their corresponding string. It does this by taking in the packet, the labels beginning offset in the label, and the name buffer where the label is to be placed. It first checks the first two bits of the label to determine if the label is a pointer or a normal label. Next, depending on if the label is a pointer or a normal label, it handles parsing it into a string. If the label contains the actual data, the bytes are interated through and added to the string, making sure to add the '.' where they belong. If the label is a pointer, the data is read out as the new offset, and the fucntion is called recursively on this offset.
+
 ----------------------
  Challenges Faced
 ----------------------
 
-We faced a number of challenges when creating our DNS Client. The first was handling 
+We faced a number of challenges when creating our DNS Client. The first was handling endianness differences between the network and our system. Because all network data was stored in a big endian format and all system data was stored in a little endian format, we had to be very careful when interpreting multiple-byte data. This challenge was faced by using functions from c's inet library called htons, htonl, ntohs, and ntohl. These functions translated data to the correct endianness, allowing it to correctly interpretted. We used these functions whenever dealing with multi-byte data in our program.
 
-Antoher challenge faced in the development of our system was handling DNS packet compression. In order to reduce the size of a message, domain systems utilize a compression scheme wherein they replace duplicated domain names in the NAME, QNAME, and RDATA with pointers to the prior occurrence of hte same name. This scheme results in the
+Antoher challenge faced in the development of our system was handling DNS packet compression. In order to reduce the size of a message, domain systems utilize a compression scheme wherein they replace duplicated domain names in the NAME, QNAME, and RDATA with pointers to the prior occurrence of the same name. The solution to this problem was to recursively handle label parsing. We did this in our parseLabel function, where we set the passed in offset to the value of the offset if a pointer was found while parsing a label.
 
 ----------------------
  Properties/Features
@@ -45,7 +56,7 @@ We successfully send a valid DNS question, and parse the most useful part of the
  Testing Procedure
 ----------------------
 
-We based our testing on the provided test but as our file system was split into different API functions, it was easy to debug and test those individually as we implemented them to ensure the components of our file systems were working as expected. During these tests we heavily used GDB to debug edge cases that we thought of and saw. To perform this testing, we found that we needed to run the file system in gdb in one shell, and then traverse/interact with the file system in another shell. Combining this process with a liberal use of hexdumping the disk allowed us to fully understand how our file system reacted to different actions, and where it was performing correctly and incorrectly. Throughout development we also modified the provided test to allow us to automatically test various specific cases. Additionally, we integrated git into our workflow as it provided a convenient tool for our workflow. In total we had ~150 commits. 
+We based our testing on the provided test, as well as using the debug functions like dump_packet and the linux command dig to make sure we were always sending and interpreting packets correctly. During these tests we heavily used GDB to debug edge cases that we thought of and saw. Additionally, we made a few smaller testing programs to verify that our helper functions functioned correctly in all cases, allowing us to pinpoint errors that may have gone undetected otherwise. Throughout development we also modified the provided test to allow us to automatically test various specific cases. Additionally, we integrated git into our workflow as it provided a convenient tool for our workflow. In total we had ~65 commits. 
 
 ----------------------
  Bald Eagle

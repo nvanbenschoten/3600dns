@@ -542,7 +542,8 @@ int parseInputServer(char *server, short *port) {
 		}
 	}
 
-	if (portSpec && portIndex > 1) {
+    // Verifies valid port specified
+	if (portSpec && portIndex > 0) {
 		*port = (short)atoi(portString);
 	}
 
@@ -554,6 +555,7 @@ int parseInputServer(char *server, short *port) {
 int parseLabel(unsigned char *packet, int *offset, char *name) {
     int first = 1;
 
+    // Makes sure offset is not past end of buffer
     if (*offset > 187)
         return -1;
 
