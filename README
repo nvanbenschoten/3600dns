@@ -13,71 +13,11 @@ Nathaniel Dempkowski and Nathan VanBenschoten
  High Level Approach
 ----------------------
 
-<<<<<<< HEAD
-We have chosen to implement the inode-based file system layout.
+To approach this project, we broke the problem of a DNS client into two logical parts: creating and sending a question packet, and receiving and interpreting a response packet.
 
-At a high level, the disk is divided into the following seven different types of blocks:
+Creating and sending the question packet was fairly simple because the question was so short and was comprised of simple parts and flags that largely don't change. The only real interpretation we had to do was changing our packet slightly depending on whether we wanted an A, MX, or NS record and converting the domain name requested to the DNS packet label format. We then send the packet with a 5 second timeout, and wait to receive a response, handling errors if something bad happens like us not receiving a response or the packet failing to send.
 
-- BLOCKS
-
-Volume Control (VCB)
-The VCB is the first block in the file system, and contains metadata about the entire disk and the location of the root directory. The location of the first FREE block is also stored in the VCB.
-
-Directory Node (DNODE)
-DNODE blocks denote a directory, and as a result there is one per directory, which contains metadata about the directory as well as pointers to the DIRENT blocks that actually contain directory entries.
-
-Directory Entry (DIRENT)
-DIRENT blocks contain the contents of directories, which is generally the name, type, and block number of each entry, along with the validity of that entry. 
-
-File Node (INODE)
-INODE blocks represent files, and thus contain metadata about the file including, size, user ID of the owner, group ID of the owner, and the permissions associated with the file.
-
-Indirect (INDIRECT)
-INDIRECT blocks store pointers to either DIRENT blocks or INDIRECT blocks. They are used to efficiently store additional information about directories as needed.
-
-Data (DB)
-DB blocks contain raw user data, and nothing else.
-
-Free (FREE)
-FREE blocks are blocks that can be used as necessary by the file system, which also store information abount the next free block as a singly linked list.
-
-Upon the initial format of the disk, we create a VCB as block 0, a DNODE as block 1, a DIRENT as block 2, and FREE blocks as blocks 3-N. Anywhere a block number is stored, we also store the validity of that number, which serves as an efficient check for things like free space, and some directory entries. 
-
-We chose to implement the inode-based file system layout because we felt that it was a more elegant and interesting design, and were willing to put in the extra effort that goes along with that. It also more closely mirrors modern file system layouts, and we felt there was more to be learned from implementing it.
-
-We implement almost all of the core functionality that an end user would expect in our file system. Our disk is mountable and unmountable. Once the disk is mounted files and directories can be created, renamed, and deleted. We support metadata for files and directories like permissions, owners, and create, access, and modify times. We can read, write, and truncate the data for these files. Directories can be read, and we also support recursive directories as a usable filesystem should. Linux utilities like ls, cat, rm, touch, etc. generally work with our filesystem as expected.
-
-- Helper Functions
-
-seperatePathAndName
-This function is given a path char point and a blank name char pointer. Using the index of the last '/', it fills the path character array with the path and the name character array with the file name
-
-findDNODE
-This function recursively steps through the file system using a path string which it modifies as it goes. The function takes a dnode (the root dnode during the first time it is called), a dnode path, and a blocknum pointer that it can fill in when it finds the needed dnode. It searches a dnodes direntries to find another dnode with the next needed dnode and will then call itself with this dnode and shortened path. When it is called with a path of '' or '/' it returns because it has found the correct dnode (which is currently in *directory)
-
-getNODE
-This function takes a directory, a name, pointers to an inode and a dnode it can fill in if it finds one, a return blocknumber, and a few flags. The function searches in the given directory for a valid direntry with the smae name as the passed in name. If it find it, it will set either the inode or the dnode pointers to the block and return. Additionally, the function takes two flags which allows it to perform other actions when the correct direntry is found. If the delete flag is set, the direntry will be set to invalid, and the dirent and the indirents will be deleted if they need to be. The directoryBlock also must be passed in in this case so that it can be written to update its state. If the rename flag is set, the direntry wil be renamed with the passed in new name.
-
-getNextFree
-This function gets the next free block from the vcb. If no free blocks are available, it returns an error. It also updates the vcb with the next available free block for its free block list. 
-
-releaseFree
-Releases a block by adding it to the vcb's free list and setting it to valid, finally writing the now freeblock to disk.
-
-getName and setName
-Deals with direntries so that a name with 27 characters not including the null terminator can be stored in the 27 byte buffer. It also allows this buffer to be translated to a null terminated string. 
-
-bufdread and bufwrite
-Abstracts the details of the disk interface away by dealing with casting to BLOCKSIZE char arrays and handling disk errors. Later was used to implement a cache without needing to change any code within the file system API. 
-
-checkIntegrity
-Performs a basic integrity check of the disk. This is called when the disk was not unmounted safely. The integrity check is done by first recording the locations of all known free blocks. We then traverse all dnodes and inodes, either recording their positions or marking them as invalid if there is a conflict with the free block list. Within inodes we check all data blocks and mark those as well. Finally we check for blocks that were not marked as either, and assume that those can be readded to the free list as they are not referenced by anything.
-
-checkDNODE
-Recursively checks through all dnodes, marking their status and fixing blocks that are already in the free list. This also updates the size of the dnode. This also calls checkINODE when it encounters an inode direntry.
-
-checkINODE
-Goes through an inode and checks all of its data blocks marking their status and fixing blocks that are already in the free list. At the end the size of the inode is also updated if it needs to be.
+Interpreting the response is more complicated, as it is comprised of more parts, with more dynamic sections, and we additionally have to check all of these for validity, as we cannot assume that the DNS server will give us anything meaningful or non-malicious back. To get specific values from the response, we frequently parse specific parts of the response into usable C data types using bit masking and shifting. These values are then easily comparable in simple logical statements, where we handle errors as necessary. We first ensure that the header and question sent back from the server are valid and that relevant parts of the data match what we sent. While parsing, we keep track of an offset, which allows us to support many answers fairly easily. Next we parse as many answers as we received, printing relevant information according to the program specifications, and continuing to handle errors as necessary. To help with the parsing of labels, we created a helper function parseLabel, which is discussed in more detail below, but essentially gets the text representation of the DNS packet label, and moves the offset appropriately to continue parsing.
 
 ----------------------
  Challenges Faced
@@ -91,13 +31,15 @@ Antoher challenge faced in the development of our system was handling DNS packet
  Properties/Features
 ----------------------
 
-We made a fully featured Inode based file system. This system allows for mounting, unmounting, getting attributes, creating files, reading from files, writing to files, truncating files, deleting files, reading a directory, creating a directory, changing the owner, group, and mode of a file, and updating metadata times. All of these API calls allowed for a well functioning file system which has all the features users expect from a file system.  
+Our DNS client supports the following command syntax:
 
-For extra credit, we implemented the ability to create and traverse multiple directories. This provided the challenge of both writing the mkdir function and making our findDNODE search recursively over dnodes. By making findDNODE recursive, we were able to accurately locate the current dnode no matter how deep in the directory structure it was located. Once this was implemented, our file system was truly usable. 
+    ./3600dns [-ns|-mx] @<server:port> <name>
 
-To cut down on the level of our disk reads, which take incredibly more time than memory reads, we implemented a 50KB cache (512 B/block * 100 blocks). Because we had already abstracted disk reads and writes away into our bufdread and bufdwrite functions (which allowed for unified error checking and buffered reading and writing), adding in a cache was simple. To do this, we created the cache memory itself, and two arrays with elements corresponding to blocks entries in the cache. The first array held the blockNums for each of the block entries in the cache. The second held the priority of each entry in the cache, allowing us to implement an effective LRU cache. When comparing the cache performance to the uncached performance, in one test where we created 100 files and read the directory three times, we found a drop from 192,566 reads from disk when uncached to only 109 reads. This huge improvement proved we had succeeded with our cache. 
+Where -ns and -mx are optional flags that query for MX (mail server) and NS (name server) records. The port is also optional, defaulting to 53.
 
-If a disk was not unmounted safely upon its last use, we perform an integrity check at mount. This consists of cataloging free blocks and blocks we know are in use on the disk. We then look for contradictions in those lists and blocks that have not been cataloged and add those to the free list, updating file and directory nodes as necessary. This returns the disk to a usable state for the end user, though some data may be lost depending on when the disk was unmounted. This is important because otherwise our entire disk would be useless if it was not safely unmounted.
+The program then prints a response to standard output with all of the records it received from the DNS server, supporting multiple answers of multiple types (CNAME & IP), and printing in a format similar to widely used utilities like dig. We also support common errors like NOTFOUND and NORESPONSE, and in other cases just print ERROR followed by a meaningful error. 
+
+We successfully send a valid DNS question, and parse the most useful part of the DNS answer, while also checking it for errors and validity. This program would be usable as a simple DNS client to an end user, though it does not support some features like Authority and Additional sections of DNS packets, as they were not required as part of the project.
 
 ----------------------
  Testing Procedure
