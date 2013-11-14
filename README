@@ -1,8 +1,9 @@
-   _____ _____ ____  ____  ____    
-  |__  // ___// __ \/ __ \/ __/____
-   /_ </ __ \/ / / / / / / /_/ ___/
- ___/ / /_/ / /_/ / /_/ / __(__  ) 
-/____/\____/\____/\____/_/ /____/  
+ ____    __   ___   ___      _           
+|___ \  / /  / _ \ / _ \    | |          
+  __) |/ /_ | | | | | | | __| |_ __  ___ 
+ |__ <| '_ \| | | | | | |/ _` | '_ \/ __|
+ ___) | (_) | |_| | |_| | (_| | | | \__ \
+|____/ \___/ \___/ \___/ \__,_|_| |_|___/
 
 --- Team America ---
 
@@ -12,6 +13,7 @@ Nathaniel Dempkowski and Nathan VanBenschoten
  High Level Approach
 ----------------------
 
+<<<<<<< HEAD
 We have chosen to implement the inode-based file system layout.
 
 At a high level, the disk is divided into the following seven different types of blocks:
