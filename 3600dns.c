@@ -107,7 +107,7 @@ int main(int argc, char *argv[]) {
         name_index++;
 
         if(parseInputFlags(argv[1], &record_flag)) {
-            printf("Error\tParsing input flags\n");
+            printf("ERROR\tParsing input flags\n");
             return -1;
         }
     }
@@ -122,7 +122,7 @@ int main(int argc, char *argv[]) {
 	short port = 53;
 
 	if(parseInputServer(server, &port)) {
-		printf("Error\tParsing input server\n");
+		printf("ERROR\tParsing input server\n");
 	  	free(server);
         return -1;
 	}
@@ -190,7 +190,7 @@ int main(int argc, char *argv[]) {
             question[len+3] = 0x2;
             break;
         default:         
-		    printf("Error\tInvalid input flag\n");
+		    printf("ERROR\tInvalid input flag\n");
 	  	    free(question);
             free(server);
             return -1;
@@ -352,10 +352,6 @@ int main(int argc, char *argv[]) {
     }
 
     // 253 for max length of DNS string + 1 for NULL terminator
-    unsigned char * return_name = (unsigned char *)calloc(254, sizeof(unsigned char));
-    // TODO where can/do we need to free return_name?
-    assert(return_name != NULL);
-    
     // check that question is the same as what we sent out
     char q_name[254] = {0};
 
@@ -507,7 +503,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Free rest of malloced memory
-    free(question); // TODO: do we need an additonal free for return_name?
+    free(question); 
 
 	return 0;
 }
